@@ -1,9 +1,14 @@
 # Set alpine version
 ARG ALPINE_VERSION=3.18
 
+# Set vars for s6 overlay
+ARG S6_OVERLAY_VERSION=v1.22.1.0
+ARG S6_OVERLAY_ARCH=amd64
+ARG S6_OVERLAY_RELEASE=https://github.com/just-containers/s6-overlay/releases/download/${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.gz
+
 # Set microsocks vars
 ARG MICROSOCKS_REPO=https://github.com/rofl0r/microsocks
-ARG MICROSOCKS_BRANCH=v1.0.2
+ARG MICROSOCKS_BRANCH=v1.0.3
 ARG MICROSOCKS_URL=${MICROSOCKS_REPO}/archive/${MICROSOCKS_BRANCH}.tar.gz
 
 # Build microsocks
@@ -40,6 +45,13 @@ RUN \
 # Runtime container
 FROM alpine:${ALPINE_VERSION}
 
+ARG S6_OVERLAY_RELEASE
+
+ENV S6_OVERLAY_RELEASE=${S6_OVERLAY_RELEASE}
+
+# Download S6 Overlay
+ADD ${S6_OVERLAY_RELEASE} /tmp/s6overlay.tar.gz
+
 # Copy binary from build container.
 COPY --from=builder /tmp/microsocks-bin/microsocks /usr/local/bin/microsocks
 
@@ -51,6 +63,8 @@ RUN \
     shadow \
     tzdata \
     curl && \
+  echo "Extracting s6 overlay..." && \
+    tar xzf /tmp/s6overlay.tar.gz -C / && \
   echo "Creating microsocks user..." && \
     useradd -u 1000 -U -M -s /bin/false microsocks && \
     usermod -G users microsocks && \
@@ -59,7 +73,9 @@ RUN \
   echo "Cleaning up temp directory..." && \
     rm -rf /tmp/*
 
-# USER microsocks
+RUN mkdir -p /etc/services.d/microsocks && \
+    echo "#!/usr/bin/with-contenv sh" >> /etc/services.d/microsocks/run && \
+    echo "s6-setuidgid microsocks /usr/local/bin/microsocks -p \${PROXY_PORT:=1080}" >> /etc/services.d/microsocks/run
 
 # Metadata.
 LABEL \
@@ -69,6 +85,6 @@ LABEL \
       org.label-schema.vcs-url="https://github.com/whimbree/docker-microsocks" \
       org.label-schema.schema-version="1.0"
 
-# Start microsocks
-ENTRYPOINT /usr/local/bin/microsocks -p ${PROXY_PORT:=1080}
+# Start s6.
+ENTRYPOINT ["/init"]
 
