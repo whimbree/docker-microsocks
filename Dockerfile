@@ -1,11 +1,5 @@
-#
-# microsocks Dockerfile
-#
-# https://github.com/shawly/docker-microsocks
-#
-
 # Set alpine version
-ARG ALPINE_VERSION=3.11
+ARG ALPINE_VERSION=3.18
 
 # Set vars for s6 overlay
 ARG S6_OVERLAY_VERSION=v1.22.1.0
@@ -14,7 +8,7 @@ ARG S6_OVERLAY_RELEASE=https://github.com/just-containers/s6-overlay/releases/do
 
 # Set microsocks vars
 ARG MICROSOCKS_REPO=https://github.com/rofl0r/microsocks
-ARG MICROSOCKS_BRANCH=v1.0.1
+ARG MICROSOCKS_BRANCH=v1.0.3
 ARG MICROSOCKS_URL=${MICROSOCKS_REPO}/archive/${MICROSOCKS_BRANCH}.tar.gz
 
 # Build microsocks
@@ -79,22 +73,17 @@ RUN \
   echo "Cleaning up temp directory..." && \
     rm -rf /tmp/*
 
-# Add files.
-ADD rootfs/ /
-
-# Expose ports.
-EXPOSE 1080
-
-# Healthcheck
-HEALTHCHECK --interval=5m --timeout=10s \
-  CMD curl -f -L -x socks5h://localhost:1080 'https://api.ipify.org' || exit 1
+RUN mkdir -p /etc/services.d/microsocks && \
+    echo "#!/usr/bin/with-contenv sh" >> /etc/services.d/microsocks/run && \
+    echo "s6-setuidgid microsocks" >> /etc/services.d/microsocks/run && \
+    echo "/usr/local/bin/microsocks -p \${PROXY_PORT:=1080}" >> /etc/services.d/microsocks/run
 
 # Metadata.
 LABEL \
       org.label-schema.name="MicroSocks" \
       org.label-schema.description="Docker container for MicroSocks" \
-      org.label-schema.version="1.0.1" \
-      org.label-schema.vcs-url="https://github.com/shawly/docker-microsocks" \
+      org.label-schema.version="1.0.3" \
+      org.label-schema.vcs-url="https://github.com/whimbree/docker-microsocks" \
       org.label-schema.schema-version="1.0"
 
 # Start s6.

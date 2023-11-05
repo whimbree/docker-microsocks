@@ -2,9 +2,10 @@ version: '3'
 
 services:
   microsocks:
-    image: shawly/microsocks
+    build: .
     restart: unless-stopped
     ports:
-      - "${MICROSOCKS_PORT:-1080}:1080"
+      - "1080:4080"
     environment:
-      TZ: Europe/Berlin
+      TZ: America/New_York
+      PROXY_PORT: 4080

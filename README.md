@@ -1,7 +1,8 @@
 # Docker container for MicroSocks
-[![Docker Automated build](https://img.shields.io/docker/automated/shawly/microsocks.svg)](https://hub.docker.com/r/shawly/microsocks/) [![Docker Image](https://images.microbadger.com/badges/image/shawly/microsocks.svg)](http://microbadger.com/#/images/shawly/microsocks) [![Build Status](https://travis-ci.org/shawly/docker-microsocks.svg?branch=master)](https://travis-ci.org/shawly/docker-microsocks) [![GitHub Release](https://img.shields.io/github/release/shawly/docker-microsocks.svg)](https://github.com/shawly/docker-microsocks/releases/latest)
 
 This is a Docker container for MicroSocks, a multithreaded, small, efficient SOCKS5 server.
+
+Stand-alone fork of [shawly/docker-microsocks](https://github.com/shawly/docker-microsocks).
 
 ---
 
@@ -33,7 +34,7 @@ Launch the microsocks docker container with the following command:
 docker run -d \
     --name=microsocks \
     -p 1080:1080 \
-    shawly/microsocks
+    whimbree/microsocks
 ```
 
 ## Usage
@@ -43,7 +44,7 @@ docker run [-d] \
     --name=microsocks \
     [-e <VARIABLE_NAME>=<VALUE>]... \
     [-p <HOST_PORT>:<CONTAINER_PORT>]... \
-    shawly/microsocks
+    whimbree/microsocks
 ```
 | Parameter | Description |
 |-----------|-------------|
@@ -59,18 +60,19 @@ of this parameter has the format `<VARIABLE_NAME>=<VALUE>`.
 
 | Variable       | Description                                  | Default |
 |----------------|----------------------------------------------|---------|
-|`TZ`| [TimeZone] of the container.  Timezone can also be set by mapping `/etc/localtime` between the host and the container. | `Etc/UTC` |
+|`TZ`| TimeZone of the container.  Timezone can also be set by mapping `/etc/localtime` between the host and the container. | `Etc/UTC` |
+|`PROXY_PORT`| Port that Microsocks will run on inside the container. | `1080` |
 
 ### Ports
 
 Here is the list of ports used by the container.  They can be mapped to the host
 via the `-p` parameter (one per port mapping).  Each mapping is defined in the
 following format: `<HOST_PORT>:<CONTAINER_PORT>`.  The port number inside the
-container cannot be changed, but you are free to use any port on the host side.
+container can be changed with the `PROXY_PORT` environment variable.
 
 | Port | Mapping to host | Description |
 |------|-----------------|-------------|
-| 1080 | Mandatory | Port used for microsocks. |
+| 1080 or `PROXY_PORT` | Mandatory | Port used for microsocks. |
 
 ### Changing Parameters of a Running Container
 
@@ -104,12 +106,13 @@ ports are part of the example.
 version: '3'
 services:
   microsocks:
-    image: shawly/microsocks
+    image: whimbree/microsocks
     restart: unless-stopped
     environment:
-      - TZ: Europe/Berlin
+      - TZ: America/New_York
+      - PROXY_PORT: 3200
     ports:
-      - "1080:1080"
+      - "1080:3200"
 ```
 
 ## Docker Image Update
@@ -119,7 +122,7 @@ the Docker image, the following steps can be followed:
 
   1. Fetch the latest image:
 ```
-docker pull shawly/microsocks
+docker pull whimbree/microsocks
 ```
   2. Stop the container:
 ```
@@ -136,4 +139,4 @@ docker rm microsocks
 Having troubles with the container or have questions?  Please
 [create a new issue].
 
-[create a new issue]: https://github.com/shawly/docker-microsocks/issues
+[create a new issue]: https://github.com/whimbree/docker-microsocks/issues
