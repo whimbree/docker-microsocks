@@ -1,6 +1,5 @@
 # Set alpine version
-ARG ALPINE_VERSION=3.18
-
+ARG ALPINE_VERSION=3.17
 # Set vars for s6 overlay
 ARG S6_OVERLAY_VERSION=v1.22.1.0
 ARG S6_OVERLAY_ARCH=amd64
@@ -12,7 +11,7 @@ ARG MICROSOCKS_BRANCH=v1.0.3
 ARG MICROSOCKS_URL=${MICROSOCKS_REPO}/archive/${MICROSOCKS_BRANCH}.tar.gz
 
 # Build microsocks
-FROM alpine:${ALPINE_VERSION} as builder
+FROM alpine:${ALPINE_VERSION} as bin_builder
 
 ARG MICROSOCKS_REPO
 ARG MICROSOCKS_BRANCH
@@ -43,7 +42,7 @@ RUN \
     cp -v /tmp/microsocks /tmp/microsocks-bin
 
 # Runtime container
-FROM alpine:${ALPINE_VERSION}
+FROM alpine:${ALPINE_VERSION} as runtime_builder
 
 ARG S6_OVERLAY_RELEASE
 
@@ -53,16 +52,13 @@ ENV S6_OVERLAY_RELEASE=${S6_OVERLAY_RELEASE}
 ADD ${S6_OVERLAY_RELEASE} /tmp/s6overlay.tar.gz
 
 # Copy binary from build container.
-COPY --from=builder /tmp/microsocks-bin/microsocks /usr/local/bin/microsocks
+COPY --from=bin_builder /tmp/microsocks-bin/microsocks /usr/local/bin/microsocks
 
 # Install runtime deps and add users.
 RUN \
   echo "Installing runtime dependencies..." && \
   apk add --no-cache \
-    coreutils \
-    shadow \
-    tzdata \
-    curl && \
+    shadow && \
   echo "Extracting s6 overlay..." && \
     tar xzf /tmp/s6overlay.tar.gz -C / && \
   echo "Creating microsocks user..." && \
@@ -70,6 +66,8 @@ RUN \
     usermod -G users microsocks && \
     mkdir -p /var/log/microsocks && \
     chown -R nobody:nogroup /var/log/microsocks && \
+  echo "Remove APK & shadow" && \
+    apk del shadow apk-tools && \
   echo "Cleaning up temp directory..." && \
     rm -rf /tmp/*
 
@@ -84,6 +82,12 @@ LABEL \
       org.label-schema.version="1.0.3" \
       org.label-schema.vcs-url="https://github.com/whimbree/docker-microsocks" \
       org.label-schema.schema-version="1.0"
+
+# Copy the files from the above into a new from-scratch image, to lose the history left
+# in the base Alpine image, and pull us down to <2MB
+FROM scratch
+
+COPY --from=runtime_builder / /
 
 # Start s6.
 ENTRYPOINT ["/init"]
