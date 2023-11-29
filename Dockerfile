@@ -1,9 +1,11 @@
 # Set alpine version
 ARG ALPINE_VERSION=3.17
+
 # Set vars for s6 overlay
-ARG S6_OVERLAY_VERSION=v1.22.1.0
-ARG S6_OVERLAY_ARCH=amd64
-ARG S6_OVERLAY_RELEASE=https://github.com/just-containers/s6-overlay/releases/download/${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.gz
+ARG S6_OVERLAY_VERSION=3.1.4.1
+ARG S6_OVERLAY_ARCH=x86_64
+ARG S6_OVERLAY_RELEASE_SCRIPT=https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz
+ARG S6_OVERLAY_RELEASE_BINARY=https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz
 
 # Set microsocks vars
 ARG MICROSOCKS_REPO=https://github.com/rofl0r/microsocks
@@ -24,7 +26,7 @@ ENV MICROSOCKS_REPO=${MICROSOCKS_REPO} \
 # Change working dir.
 WORKDIR /tmp
 
-# Add MICROSOCKS repo archive
+# Download microsocks source.
 ADD ${MICROSOCKS_URL} /tmp/microsocks.tar.gz
 
 # Install deps and build binary.
@@ -44,12 +46,19 @@ RUN \
 # Runtime container
 FROM alpine:${ALPINE_VERSION} as runtime_builder
 
-ARG S6_OVERLAY_RELEASE
+ARG S6_OVERLAY_VERSION
+ARG S6_OVERLAY_ARCH
+ARG S6_OVERLAY_RELEASE_SCRIPT
+ARG S6_OVERLAY_RELEASE_BINARY
 
-ENV S6_OVERLAY_RELEASE=${S6_OVERLAY_RELEASE}
+ENV S6_OVERLAY_VERSION=${S6_OVERLAY_VERSION} \
+    S6_OVERLAY_ARCH=${S6_OVERLAY_ARCH} \
+    S6_OVERLAY_RELEASE_SCRIPT=${S6_OVERLAY_RELEASE_SCRIPT} \
+    S6_OVERLAY_RELEASE_BINARY=${S6_OVERLAY_RELEASE_BINARY}
 
-# Download S6 Overlay
-ADD ${S6_OVERLAY_RELEASE} /tmp/s6overlay.tar.gz
+# Download the s6 overlay scripts & binaries.
+ADD ${S6_OVERLAY_RELEASE_SCRIPT} /tmp/s6-overlay-script.tar.xz
+ADD ${S6_OVERLAY_RELEASE_BINARY} /tmp/s6-overlay-binary.tar.xz
 
 # Copy binary from build container.
 COPY --from=bin_builder /tmp/microsocks-bin/microsocks /usr/local/bin/microsocks
@@ -60,7 +69,8 @@ RUN \
   apk add --no-cache \
     shadow && \
   echo "Extracting s6 overlay..." && \
-    tar xzf /tmp/s6overlay.tar.gz -C / && \
+    tar -C / -Jxpf /tmp/s6-overlay-script.tar.xz && \
+    tar -C / -Jxpf /tmp/s6-overlay-binary.tar.xz && \
   echo "Creating microsocks user..." && \
     useradd -u 1000 -U -M -s /bin/false microsocks && \
     usermod -G users microsocks && \
@@ -71,9 +81,12 @@ RUN \
   echo "Cleaning up temp directory..." && \
     rm -rf /tmp/*
 
-RUN mkdir -p /etc/services.d/microsocks && \
-    echo "#!/usr/bin/with-contenv sh" >> /etc/services.d/microsocks/run && \
-    echo "s6-setuidgid microsocks /usr/local/bin/microsocks -p \${PROXY_PORT:=1080}" >> /etc/services.d/microsocks/run
+# Setup microsocks service
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/microsocks && \
+  echo "longrun" > /etc/s6-overlay/s6-rc.d/microsocks/type && \
+  echo "#!/command/with-contenv sh" > /etc/s6-overlay/s6-rc.d/microsocks/run && \
+  echo "/usr/local/bin/microsocks -p \${PROXY_PORT:=1080}" >> /etc/s6-overlay/s6-rc.d/microsocks/run && \
+  touch /etc/s6-overlay/s6-rc.d/user/contents.d/microsocks
 
 # Metadata.
 LABEL \
@@ -88,6 +101,8 @@ LABEL \
 FROM scratch
 
 COPY --from=runtime_builder / /
+
+USER microsocks
 
 # Start s6.
 ENTRYPOINT ["/init"]
